@@ -1,0 +1,356 @@
+
+
+----On all servers
+cat >> /etc/hosts << EOF
+#powerdns
+192.168.56.102 uat4.5-dns01.xplat.vn
+192.168.56.103 uat4.5-dns01.xplat.vn
+EOF
+
+hostnamectl set-hostname uat4.5-dns01
+
+
+cat >> .bashrc << EOF
+IP=$(ifconfig eth1 |grep -w inet |awk '{print $2}')
+export PS1=[`whoami`@`hostname`-$IP:'$PWD]#'
+EOF
+
+
+
+yum install -y epel-release yum-plugin-priorities
+#curl -o /etc/yum.repos.d/powerdns-auth-42.repo https://repo.powerdns.com/repo-files/centos-auth-42.repo
+curl -o /etc/yum.repos.d/powerdns-auth-44.repo https://repo.powerdns.com/repo-files/centos-auth-44.repo
+curl -o /etc/yum.repos.d/powerdns-auth-41.repo https://repo.powerdns.com/repo-files/centos-auth-41.repo
+yum update -y
+
+yum install -y mariadb mariadb-server pdns pdns-backend-mysql
+
+
+systemctl enable --now firewalld mariadb pdns
+firewall-cmd --add-service=dns --permanent
+firewall-cmd --reload
+
+systemctl start mariadb && systemctl status mariadb
+
+mysql_secure_installation
+
+#CREATE DATABASE powerdns;
+mysql -u root -p123456
+CREATE DATABASE powerdns character set = 'utf8';
+GRANT ALL ON powerdns.* TO powerdns@localhost IDENTIFIED BY 'powerdns';
+GRANT ALL ON powerdns.* TO powerdns@xplat.vn IDENTIFIED BY 'powerdns';
+FLUSH PRIVILEGES;
+quit;
+
+
+#pdns_server --daemon=no --guardian=no --loglevel=9
+
+
+useradd powerdns; echo 'powerdns' | passwd powerdns --stdin
+
+
+
+---
+mysql -u root -p123456
+
+USE powerdns;
+
+
+CREATE TABLE domains (
+  id                    INT AUTO_INCREMENT,
+  name                  VARCHAR(255) NOT NULL,
+  master                VARCHAR(128) DEFAULT NULL,
+  last_check            INT DEFAULT NULL,
+  type                  VARCHAR(6) NOT NULL,
+  notified_serial       INT UNSIGNED DEFAULT NULL,
+  account               VARCHAR(40) CHARACTER SET 'utf8' DEFAULT NULL,
+  PRIMARY KEY (id)
+) Engine=InnoDB;
+
+ CREATE UNIQUE INDEX name_index ON domains(name);
+
+ CREATE TABLE records (
+   id                    BIGINT AUTO_INCREMENT,
+   domain_id             INT DEFAULT NULL,
+   name                  VARCHAR(255) DEFAULT NULL,
+   type                  VARCHAR(10) DEFAULT NULL,
+   content               VARCHAR(64000) DEFAULT NULL,
+  ttl                   INT DEFAULT NULL,
+   prio                  INT DEFAULT NULL,
+   change_date           INT DEFAULT NULL,
+   disabled              TINYINT(1) DEFAULT 0,
+   ordername             VARCHAR(255) BINARY DEFAULT NULL,
+   auth                  TINYINT(1) DEFAULT 1,
+   PRIMARY KEY (id)
+ ) Engine=InnoDB;
+ 
+CREATE INDEX nametype_index ON records(name,type);
+CREATE INDEX domain_id ON records(domain_id);
+CREATE INDEX ordername ON records (ordername);
+ 
+CREATE TABLE supermasters (
+  ip                    VARCHAR(64) NOT NULL,
+  nameserver            VARCHAR(255) NOT NULL,
+  account               VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (ip, nameserver)
+) Engine=InnoDB;
+
+CREATE TABLE comments (
+     id                    INT AUTO_INCREMENT,
+     domain_id             INT NOT NULL,
+     name                  VARCHAR(255) NOT NULL,
+     type                  VARCHAR(10) NOT NULL,
+     modified_at           INT NOT NULL,
+     account               VARCHAR(40) CHARACTER SET 'utf8' DEFAULT NULL,
+     comment               TEXT CHARACTER SET 'utf8' NOT NULL,
+     PRIMARY KEY (id)
+     ) Engine=InnoDB;
+ 
+CREATE INDEX comments_domain_id_idx ON comments (domain_id);
+CREATE INDEX comments_name_type_idx ON comments (name, type);
+CREATE INDEX comments_order_idx ON comments (domain_id, modified_at);
+ 
+CREATE TABLE domainmetadata (
+    id                    INT AUTO_INCREMENT,
+    domain_id             INT NOT NULL,
+    kind                  VARCHAR(32),
+    content               TEXT,
+    PRIMARY KEY (id)
+    ) Engine=InnoDB;
+
+CREATE INDEX domainmetadata_idx ON domainmetadata (domain_id, kind);
+ 
+CREATE TABLE cryptokeys (
+  id                    INT AUTO_INCREMENT,
+  domain_id             INT NOT NULL,
+  flags                 INT NOT NULL,
+  active                BOOL,
+  content               TEXT,
+  PRIMARY KEY(id)
+) Engine=InnoDB;
+
+CREATE INDEX domainidindex ON cryptokeys(domain_id);
+ 
+CREATE TABLE tsigkeys (
+  id                    INT AUTO_INCREMENT,
+  name                  VARCHAR(255),
+  algorithm             VARCHAR(50),
+  secret                VARCHAR(255),
+  PRIMARY KEY (id)
+) Engine=InnoDB;
+
+CREATE UNIQUE INDEX namealgoindex ON tsigkeys(name, algorithm);
+ 
+show tables;
+
+ALTER TABLE records ADD CONSTRAINT `records_domain_id_ibfk` FOREIGN KEY (`domain_id`) REFERENCES `domains` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE comments ADD CONSTRAINT `comments_domain_id_ibfk` FOREIGN KEY (`domain_id`) REFERENCES `domains` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE domainmetadata ADD CONSTRAINT `domainmetadata_domain_id_ibfk` FOREIGN KEY (`domain_id`) REFERENCES `domains` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE cryptokeys ADD CONSTRAINT `cryptokeys_domain_id_ibfk` FOREIGN KEY (`domain_id`) REFERENCES `domains` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+quit;
+
+#chmod 755 /etc/pdns/pdns.conf
+chmod 755 /etc/pdns/*
+
+vi /etc/pdns/pdns.conf
+ /etc/pdns/pdns.conf
+
+cp /etc/pdns/pdns.conf /etc/pdns/pdns.conf.bak
+
+#cat /etc/pdns/pdns.conf | grep -v "#"
+
+mkdir /etc/pdns/local.d
+
+--- Master
+
+
+cat > /etc/pdns/pdns.conf << EOF
+# Master
+daemon=no
+guardian=no
+setgid=pdns
+setuid=pdns
+cache-ttl=20
+launch=gmysql
+#webserver-port=8081
+#webserver-allow-from=127.0.0.1,::1
+api-key=powerdns123
+expand-alias=no
+webserver=yes
+api=yes
+include-dir=/etc/pdns/local.d
+resolver=no
+version-string=anonymous
+#webserver-address=127.0.0.1
+launch=gmysql
+gmysql-host=localhost
+gmysql-dbname=powerdns
+gmysql-user=powerdns
+gmysql-password=powerdns
+gmysql-dnssec=no
+default-ttl=60
+dnsupdate=yes
+master=yes
+#allow transfer to slave
+allow-axfr-ips=192.168.56.103
+disable-axfr=no
+EOF
+
+pdns_server --daemon=no --guardian=no --loglevel=9
+
+#yum remove dnsmasq
+#netstat -lntup | grep 53
+#kill -9 1783
+
+#systemctl start pdns
+systemctl enable --now pdns
+systemctl status pdns
+
+ss -altnp | grep 53
+
+----slave
+
+cat > /etc/pdns/pdns.conf << EOF
+# Slave
+daemon=no
+guardian=no
+setgid=pdns
+setuid=pdns
+cache-ttl=20
+expand-alias=no
+webserver=no
+resolver=no
+version-string=anonymous
+launch=gmysql
+gmysql-host=localhost
+gmysql-dbname=powerdns
+gmysql-user=powerdns
+gmysql-password=powerdns
+gmysql-dnssec=no
+#Allowed Zone Transfers from Master
+#allow-axfr-ips=192.168.56.102/24
+allow-dnsupdate-from=192.168.56.102/24
+allow-notify-from=192.168.56.102/24
+dnsupdate=yes
+master=no
+slave=yes
+superslave=yes
+EOF
+
+mysql -u root -p123456
+INSERT INTO `powerdns`.`supermasters` (`ip`, `nameserver`) VALUES ('192.168.56.102', 'uat4.5-dns01.xplat.vn');
+
+pdns_server --daemon=no --guardian=no --loglevel=9
+systemctl restart pdns
+
+ss -altnp | grep 53
+netstat -tulpn | grep 53
+dig @192.168.56.102
+
+
+--- admin
+
+yum -y install httpd php php-devel php-gd php-imap php-ldap php-mysql php-odbc php-pear php-xml php-xmlrpc php-mbstring php-mcrypt php-mhash gettext
+yum -y install php-pear-DB php-pear-MDB2-Driver-mysqli
+
+systemctl start httpd
+systemctl enable httpd
+systemctl status httpd
+
+firewall-cmd --add-service={http,https} --permanent
+firewall-cmd --reload
+
+cd /var/www/html/ && wget http://downloads.sourceforge.net/project/poweradmin/poweradmin-2.1.7.tgz
+
+tar zxvf poweradmin-2.1.7.tgz && mv poweradmin-2.1.7/ poweradmin/
+
+
+http://192.168.56.102/poweradmin/install/
+
+
+#Choose your preferred language and click the 'Go to Step 2' button.
+I prefer to proceed in english
+'Go to Step 3' button
+
+Username							powerdns	The username to use to connect to the database, make sure the username has sufficient rights to perform administrative task to the PowerDNS database (the installer wants to drop, create and fill tables to the database).
+Password							powerdns	The password for this username.
+Database type						MySQL		The type of the PowerDNS database.
+Hostname							localhost	The hostname on which the PowerDNS database resides. Frequently, this will be "localhost".
+DB Port								3306		The port the database server is listening on.
+Database							powerdns	The name of the PowerDNS database.
+Poweradmin administrator password	powerdns	The password of the Poweradmin administrator. This administrator has full rights to Poweradmin using the web interface.
+
+Installation step 4
+Username				pdnsadm					The username for Poweradmin. This new user will have limited rights only.
+Password				pdnsadm					The password for this username.
+Hostmaster				uat4.5-dns.xplat.vn		When creating SOA records and no hostmaster is provided, this value here will be used. Should be in the form "hostmaster.example.net".
+Primary nameserver		uat4.5-dns01.xplat.vn	When creating new zones using the template, this value will be used as primary nameserver. Should be like "ns1.example.net".
+Secondary nameserver	uat4.5-dns02.xplat.vn	When creating new zones using the template, this value will be used as secondary nameserver. Should be like "ns2.example.net".
+
+Installation step 5
+mysql -u root -p123456
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON powerdns.*
+TO 'pdnsadm'@'localhost'
+IDENTIFIED BY 'pdnsadm';
+
+Installation step 6
+
+cd /var/www/html/poweradmin
+
+vi /var/www/html/poweradmin/inc/config.inc.php
+
+<?php
+
+$db_host		= 'localhost';
+$db_user		= 'pdnsadm';
+$db_pass		= 'pdnsadm';
+$db_name		= 'powerdns';
+$db_type		= 'mysql';
+$db_layer		= 'PDO';
+
+$session_key		= 'V(%0@]T2om-IP%Z@1t53c6o80SQ$ab2r49c+{naExxcLkF';
+
+$iface_lang		= 'en_EN';
+
+$dns_hostmaster		= 'uat4.5-dns.xplat.vn';
+$dns_ns1		= 'uat4.5-dns01.xplat.vn';
+$dns_ns2		= 'uat4.5-dns02.xplat.vn';
+
+Installation step 7
+Now we have finished the configuration.
+
+If you want support for the URLs used by other dynamic DNS providers, run "cp install/htaccess.dist .htaccess" and enable mod_rewrite in Apache.
+
+You should (must!) remove the directory "install/" from the Poweradmin root directory. You will not be able to use Poweradmin if it exists. Do it now.
+
+After you have removed the directory, you can login to Poweradmin with username "admin" and password "powerdns". You are highly encouraged to change these as soon as you are logged in.
+
+#To support URLs used by other Dynamic providers,run the commands below:
+cd /var/www/html/poweradmin
+cp install/htaccess.dist .htaccess
+
+#MUST remove the 'install' directory
+rm -rf /var/www/html/poweradmin/install
+#mv /var/www/html/poweradmin/install /var/www/html/poweradmin/install.bak
+
+
+http://192.168.1.41/poweradmin/index.php
+admin / powerdns
+
+
+---
+
+Add master zone
+zone name: xplat.vn
+click 'Add zone'
+
+
+pdnsutil create-zone xplat.vn
+pdnsutil add-record xplat.vn @ NS uat4.5-dns01.xplat.vn
+
+pdnsutil increase-serial xplat.vn
+pdns_control notify xplat.vn
+
+dig NS xplat.vn @uat4.5-dns01.xplat.vn

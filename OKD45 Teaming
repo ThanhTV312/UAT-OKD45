@@ -1,0 +1,89 @@
+
+
+----------- Teaming using nmcli 
+yum install teamd -y
+
+rpm -qi teamd
+
+#check
+ip link  show
+nmcli connection show
+nmcli device status
+
+nmcli connection add type team con-name team0 ifname team0 \
+config '{ "runner": {"name": "lacp"}, "link_watch": {"name": "ethtool"}}'
+  
+#can replace loadbalance with:
+activebackup
+broadcast
+lacp
+random
+roundrobin
+
+
+nmcli con show team0
+nmcli con show
+
+nmcli con mod team0 ipv4.addresses 192.168.56.106/24
+nmcli con mod team0 ipv4.gateway 192.168.56.1
+#nmcli con mod team0 ipv4.dns 8.8.8.8
+nmcli con mod team0 ipv4.method manual
+nmcli con mod team0 connection.autoconnect yes
+
+
+nmcli con add type team-slave con-name team0-slave0 ifname eth2 master team0
+nmcli con add type team-slave con-name team0-slave1 ifname eth3 master team0
+
+#nmcli con up team0-slave0
+#nmcli con up team0-slave1
+teamnl team0 ports 
+
+nmcli connection down team0 && nmcli connection up team0
+
+ip addr show  dev  team0
+
+teamdctl team0 state
+
+ping 192.168.56.106
+
+
+----------- Teaming using ifcfg file 
+
+nmcli con show
+
+#vi /etc/sysconfig/network-scripts/ifcfg-team0
+
+cat >> /etc/sysconfig/network-scripts/ifcfg-team0 << EOF
+DEVICE=team0
+NAME=team0
+DEVICETYPE=Team
+ONBOOT=yes
+BOOTPROTO=none
+IPADDR=192.168.58.102
+PREFIX=24
+GATEWAY=192.168.58.1
+TEAM_CONFIG='{"runner": {"name": "lacp"}, "link_watch": {"name": "ethtool"}}'
+EOF
+
+cat >> /etc/sysconfig/network-scripts/ifcfg-eth2-team0-slave0 << EOF
+NAME=team0-slave0
+DEVICE=eth2
+ONBOOT=yes
+TEAM_MASTER=team0
+DEVICETYPE=TeamPort
+EOF
+
+cat >> /etc/sysconfig/network-scripts/ifcfg-eth3-team0-slave1 << EOF
+NAME=team0-slave0
+DEVICE=eth3
+ONBOOT=yes
+TEAM_MASTER=team0
+DEVICETYPE=TeamPort
+EOF
+
+ip link set eth2 down
+ip link set eth3 down
+ifup team0
+teamnl team0 ports
+
+

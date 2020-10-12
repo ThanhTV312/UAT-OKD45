@@ -1,0 +1,205 @@
+
+
+
+
+yum install httpd -y
+sed -i 's/Listen 80/Listen 8080/' /etc/httpd/conf/httpd.conf
+
+mkdir /var/www/html/okd45
+
+#Upload the rootfs, kernel, and initramfs
+
+chown -R apache: /var/www/html/okd45
+chmod -R 755 /var/www/html/okd45
+
+-rwxr-xr-x. 1 apache apache  73398156 Oct 10 09:55 fcos-32.2-initramfs.img
+-rwxr-xr-x. 1 apache apache  11644976 Oct 10 09:55 fcos-32.2-kernel
+-rwxr-xr-x. 1 apache apache 681587712 Oct 10 09:56 fcos-32.2-rootfs.img
+
+#check
+for i in $(ls -1 /var/www/html/okd45); do curl -I http://10.14.172.5:8080/okd45/$i; done;
+for i in $(ls -1 /var/www/html/okd45); do curl -v http://10.14.172.5:8080/okd45/$i; done;
+
+mkdir /root/okd45 && cd /root/okd45
+#Download installer from https://github.com/openshift/okd/releases
+
+
+---
+yum install -y dhcp tftp-server syslinux
+
+yum install -y tftp-server syslinux
+
+cp -rvf /usr/share/syslinux/* /var/lib/tftpboot
+
+mkdir /var/lib/tftpboot/pxelinux.cfg/
+
+vi /var/lib/tftpboot/pxelinux.cfg/default
+
+
+mkdir /var/lib/tftpboot/okd45
+
+https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200715.3.0/x86_64/fedora-coreos-32.20200715.3.0-metal.x86_64.raw.xz.sig
+https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200923.3.0/x86_64/fedora-coreos-32.20200923.3.0-metal.x86_64.raw.xz.sig
+
+cd /var/www/html/okd45/
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200923.3.0/x86_64/fedora-coreos-32.20200923.3.0-metal.x86_64.raw.xz.sig
+
+
+cp /var/www/html/okd45/fcos-32.2-kernel /var/lib/tftpboot/okd45/fcos-32.2-kernel
+cp /var/www/html/okd45/fcos-32.2-initramfs.img /var/lib/tftpboot/okd45/fcos-32.2-initramfs.img
+
+
+dnf install dhcp-server -y
+
+cp /usr/share/doc/dhcp-server/dhcpd.conf.example /etc/dhcp/dhcpd.conf
+
+vi /etc/dhcp/dhcpd.conf
+
+firewall-cmd --add-port=67/udp --permanent
+firewall-cmd --reload
+
+#systemctl start httpd
+#systemctl start dhcpd
+#systemctl start tftp.service
+#systemctl start tftp.socket
+
+systemctl restart httpd
+systemctl restart dhcpd
+systemctl restart tftp.service
+systemctl restart tftp.socket
+
+
+systemctl enable --now httpd
+systemctl enable --now dhcpd
+systemctl enable --now tftp.service
+systemctl enable --now tftp.socket
+
+
+#systemctl stop named
+
+
+---
+
+ssh-keygen -t rsa -b 4096 -N '' -f /root/.ssh/id_rsa
+
+eval "$(ssh-agent -s)"
+#Agent pid 253715
+
+ssh-add /root/.ssh/id_rsa
+#Identity added: /root/.ssh/id_rsa (root@services)
+
+/root/.ssh/id_rsa
+/root/.ssh/id_rsa.pub
+
+#
+IP=$(ifconfig ens33 |grep -w inet |awk '{print $2}')
+export PS1=[`whoami`@`hostname`-$IP:'$PWD]#'
+
+
+#
+mkdir install_dir
+
+vi install-config.yaml
+
+apiVersion: v1
+baseDomain: xplat.vn
+metadata:
+  name: okd45
+compute:
+- hyperthreading: Enabled   
+  name: worker
+  replicas: 0
+controlPlane:
+  hyperthreading: Enabled   
+  name: master
+  replicas: 3 
+networking:
+  networkType: OpenShiftSDN
+  clusterNetworks:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  none: {}
+fips: false
+pullSecret: '{"auths":{"fake":{"auth": "bar"}}}'
+sshKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/y/LqWsqpWUBzx1b+6wU44zVLfSbj+nOjXmNZE+4oMqgeTd9RfrQgqpVvImIX9sXVgiD3g7HP75jKk5uhB5HvPVaz3jJcGlbNZ3ustDU+wuv5u2mwppbSonY/urDgdBP3mS1WznMUtDOai6gPCjRNekzjSn6Npt7h2VASscCBonOzl66PLfD02dEL8O4FxZsPuIrWAA1t0hocu2GgHKbwL1p4iX2d5h+5j64eGYfWkYnFNgJY8GS2OnDAyW+aM/WnDq4oAiPBIaY4pfCWnBimlBCz2QSk06O6MVq5YQylzw/Rq+LVNJ2/Je6XyvkrysqkxvtOgMU7sKSGa2sS4Jzlmn84kE+qaBVY4zbL7xhSWCfj7flK5HtwL5MP9qKlqCsvZmKRbypHRVUrewnm28O+RfDFQhFSEe4yDrIaK544JNfj9E5QFJTYB9qWq2/y7r2RLNE1AmY6KmZVj7iYCsoQlVODYxAD1SgF8x1jVPQouOgzZiHKq0iAsKeQ1/fbpVMSi2JYo0HW5Cup/uvP9AZmC/rF2vf86W5XITd8FUzr/Dnnu/DyK8C8JgehmWs0CeSpg1Br4Vme/zmWygBRorwZNikf3V8pwJde88UB3ryGjyVon1Gh8e26i5DyoucU1TE2Cs4Y1Im/sFyVISdo0jWxyrPM+N8acdFgjy4KNdfDhw== root@services'
+
+cp install-config.yaml install-config.`date '+%Y-%m-%d'`.bak
+
+
+--- Cluster deployment
+
+export PATH=$PATH:/root/okd45
+
+id=/root/okd45/install_dir
+echo $id
+
+cd /root/okd45
+
+#./openshift-install create manifests --dir=/root/okd45/install_dir
+
+openshift-install create manifests --dir=$id
+
+# prevent Pods from being scheduled on the control plane machines
+#sed -i 's/mastersSchedulable: true/mastersSchedulable: False/' /root/okd45/install_dir/manifests/cluster-scheduler-02-config.yml
+
+sed -i 's/mastersSchedulable: true/mastersSchedulable: False/' $id/manifests/cluster-scheduler-02-config.yml
+
+#./openshift-install create ignition-configs --dir=/root/okd45/install_dir
+
+openshift-install create ignition-configs --dir=$id
+
+
+[root@services-10.14.102.211:/root/okd45/install_dir]#tree .
+.
+├── auth
+│   ├── kubeadmin-password
+│   └── kubeconfig
+├── bootstrap.ign
+├── install-config.2020-10-10.bak
+├── master.ign
+├── metadata.json
+└── worker.ign
+
+cp -R //root/okd45/install_dir/*.ign /var/www/html/okd45/
+
+chown -R apache: /var/www/html/okd45/
+chmod -R 755 /var/www/html/okd45/
+
+#./openshift-install --dir=/root/okd45/install_dir wait-for bootstrap-complete --log-level=info
+
+openshift-install --dir=$id wait-for bootstrap-complete --log-level=info
+
+#
+ssh core@uat4.5-bootstrap.xplat.vn
+journalctl -b -f -u release-image.service -u bootkube.service
+
+
+#export KUBECONFIG=/root/okd45/install_dir/auth/kubeconfig
+
+export KUBECONFIG=$id/auth/kubeconfig
+
+echo "KUBECONFIG=/root/okd45/install_dir/auth/kubeconfig" >> /root/.bashrc
+
+oc whoami
+
+oc get nodes
+
+oc get csr
+
+oc get csr -o go-template='{{range .items}}{{if not .status}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' | xargs oc adm certificate approve
+
+watch -n5 oc get clusteroperators
+
+#./openshift-install --dir=/root/okd45/install_dir wait-for install-complete
+
+openshift-install --dir=$id wait-for install-complete
+
+oc get pods --all-namespaces
+
+ssh -i /root/.ssh/id_rsa core@uat4.5-worker01.okd45.xplat.vn
+
+curl -O http://10.14.172.5:8080/okd45/worker.ign
+coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign

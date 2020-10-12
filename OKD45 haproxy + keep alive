@@ -1,0 +1,296 @@
+uat4.5-proxy01		10.14.172.6
+uat4.5-proxy02		10.14.172.7
+VIP							10.14.172.8
+
+#cat >> /etc/hosts << EOF
+#haproxy
+#10.14.172.6 uat4.5-proxy01
+#10.14.172.7 uat4.5-proxy02
+#EOF
+
+hostnamectl set-hostname uat4.5-proxy01
+
+vi .bashrc
+IP=$(ifconfig ens192 |grep -w inet |awk '{print $2}')
+export PS1=[`whoami`@`hostname`-$IP:'$PWD]#'
+
+
+-------- Install Keep Alived
+
+yum install -y keepalived
+echo "net.ipv4.ip_nonlocal_bind=1" >> /etc/sysctl.conf
+sysctl -p
+#killall
+yum install -y psmisc
+
+----master
+
+cp /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.bak
+
+cat > /etc/keepalived/keepalived.conf << EOF
+#keepalive check HAProxy every 2s, add 2 points if OK
+vrrp_script chk_haproxy {
+  script "killall -0 haproxy" 		# check the haproxy process
+  interval 2 									# every 2 seconds
+  weight 2 									# add 2 points if OK
+}
+#master
+vrrp_instance VI_1 {
+  interface ens192 							# interface teaming
+  state MASTER 							# MASTER on haproxy, BACKUP on haproxy2
+  virtual_router_id 51
+  priority 101 								# 101 on haproxy, 100 on haproxy2
+  virtual_ipaddress {
+    10.14.172.8 							# virtual ip address
+  }
+  track_script {
+    chk_haproxy
+  }
+}
+EOF
+
+
+systemctl restart keepalived
+systemctl enable --now keepalived
+systemctl status keepalived
+ip a
+
+
+------ Slave
+
+cp /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.bak
+
+cat > /etc/keepalived/keepalived.conf << EOF
+#keepalive check HAProxy every 2s, add 2 points if OK
+vrrp_script chk_haproxy {
+  script "killall -0 haproxy" 		# check the haproxy process
+  interval 2 									# every 2 seconds
+  weight 2 									# add 2 points if OK
+}
+#slave
+vrrp_instance VI_1 {
+  interface ens192 							# interface to monitor
+  state BACKUP 							# MASTER on haproxy, BACKUP on haproxy2
+  virtual_router_id 51
+  priority 100 								# 101 on haproxy, 100 on haproxy2
+  virtual_ipaddress {
+    10.14.172.8  							# virtual ip address
+  }
+  track_script {
+    chk_haproxy
+  }
+}
+EOF
+ 
+
+systemctl start keepalived
+systemctl enable --now keepalived
+ip a
+
+
+-------- Install HAProxy
+
+yum install -y haproxy
+
+#Permissive mode
+sed -i --follow-symlinks 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
+
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+
+cat >> /etc/haproxy/haproxy.cfg << EOF
+#---------------------------------------------------------------------
+# Example configuration for a possible web application.  See the
+# full configuration options online.
+#
+#   http://haproxy.1wt.eu/download/1.4/doc/configuration.txt
+#
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+# Global settings
+#---------------------------------------------------------------------
+global
+    # to have these messages end up in /var/log/haproxy.log you will
+    # need to:
+    #
+    # 1) configure syslog to accept network log events.  This is done
+    #    by adding the '-r' option to the SYSLOGD_OPTIONS in
+    #    /etc/sysconfig/syslog
+    #
+    # 2) configure local2 events to go to the /var/log/haproxy.log
+    #   file. A line like the following can be added to
+    #   /etc/sysconfig/syslog
+    #
+    #    local2.*                       /var/log/haproxy.log
+    #
+    log         127.0.0.1 local2
+
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+
+    # turn on stats unix socket
+    stats socket /var/lib/haproxy/stats
+ssl-default-bind-ciphers PROFILE=SYSTEM
+ssl-default-server-ciphers PROFILE=SYSTEM
+
+#---------------------------------------------------------------------
+# common defaults that all the 'listen' and 'backend' sections will
+# use if not designated in their block
+#---------------------------------------------------------------------
+defaults
+    mode                   http
+    log                     	 global
+    option                  httplog
+    option                  dontlognull
+    option http-server-close
+    option forwardfor       except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    20s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          1m
+    timeout server          1m
+    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 8000
+
+#---------------------------------------------------------------------
+# main frontend which proxys to the backends
+#---------------------------------------------------------------------
+#frontend  main *:5000
+#    acl url_static       path_beg       -i /static /images /javascript /stylesheets
+#    acl url_static       path_end       -i .jpg .gif .png .css .js
+
+#    use_backend static          if url_static
+#    default_backend             app
+
+#---------------------------------------------------------------------
+# static backend for serving up images, stylesheets and such
+#---------------------------------------------------------------------
+#backend static
+#    balance     roundrobin
+#    server      static 127.0.0.1:4331 check
+
+#---------------------------------------------------------------------
+# round robin balancing between the various backends
+#---------------------------------------------------------------------
+#backend app
+#    balance     roundrobin
+#    server  app1 127.0.0.1:5001 check
+#    server  app2 127.0.0.1:5002 check
+#    server  app3 127.0.0.1:5003 check
+#    server  app4 127.0.0.1:5004 check
+
+#-------OKD4.5
+listen stats
+    bind *:9000
+    mode http
+    stats enable
+    stats uri /
+	#stats hide-version
+    stats auth admin:password
+	stats realm HAProxy\ Statistics
+    stats admin if TRUE
+
+frontend openshift-api-server
+    bind *:6443
+    default_backend openshift-api-server-be
+    mode tcp
+    option tcplog
+#    option forwardfor
+
+backend openshift-api-server-be
+    balance source
+    mode tcp
+#    option forwardfor
+    server uat4.5-bootstrap.okd45 10.14.172.4:6443 check
+    server uat4.5-master01.okd45 10.14.172.23:6443 check
+    server uat4.5-master02.okd45 10.14.172.24:6443 check
+    server uat4.5-master03.okd45 10.14.172.25:6443 check
+
+frontend machine-config-server
+    bind *:22623
+    default_backend machine-config-server-be
+    mode tcp
+#    option forwardfor
+    option tcplog
+
+backend machine-config-server-be
+    balance source
+    mode tcp
+#    option forwardfor
+    server uat4.5-bootstrap.okd45 10.14.172.4:22623 check
+    server uat4.5-master01.okd45 10.14.172.23:22623 check
+    server uat4.5-master02.okd45 10.14.172.24:22623 check
+    server uat4.5-master03.okd45 10.14.172.25:22623 check
+
+frontend ingress-http
+    bind *:80
+    default_backend ingress-http-be
+    mode tcp
+    option tcplog
+#    option forwardfor
+
+backend ingress-http-be
+    balance source
+    mode tcp
+#    option forwardfor
+    server uat4.5-worker01.okd45 10.14.172.28:80 check
+    server uat4.5-worker02.okd45 10.14.172.29:80 check
+	server uat4.5-worker03.okd45 10.14.172.30:80 check
+	server uat4.5-storage04.okd45 10.14.172.100:80 check
+	server uat4.5-storage05.okd45 10.14.172.101:80 check
+	server uat4.5-storage06.okd45 10.14.172.102:80 check
+	server uat4.5-storage07.okd45 10.14.172.103:80 check
+	server uat4.5-infra01.okd45 10.14.172.20:80 check
+	server uat4.5-infra02.okd45 10.14.172.21:80 check
+	server uat4.5-infra03.okd45 10.14.172.22:80 check
+	server uat4.5-router01.okd45 10.14.172.26:80 check
+	server uat4.5-router02.okd45 10.14.172.27:80 check
+
+frontend ingress-https
+    bind *:443
+    default_backend ingress-https-be
+    mode tcp
+    option tcplog
+#    option forwardfor
+
+backend ingress-https-be
+    balance source
+    mode tcp
+#    option forwardfor
+    server uat4.5-worker01.okd45 10.14.172.28:443 check
+    server uat4.5-worker02.okd45 10.14.172.29:443 check
+	server uat4.5-worker03.okd45 10.14.172.30:443 check
+	server uat4.5-storage04.okd45 10.14.172.100:443 check
+	server uat4.5-storage05.okd45 10.14.172.101:443 check
+	server uat4.5-storage06.okd45 10.14.172.102:443 check
+	server uat4.5-storage07.okd45 10.14.172.103:443 check
+	server uat4.5-infra01.okd45 10.14.172.20:80 check
+    server uat4.5-infra02.okd45 10.14.172.21:443 check
+    server uat4.5-infra03.okd45 10.14.172.22:443 check
+    server uat4.5-router01.okd45 10.14.172.26:443 check
+    server uat4.5-router02.okd45 10.14.172.27:443 check
+EOF
+
+#Log cho HAProxy
+
+sed -i "s/#\$ModLoad imudp/\$ModLoad imudp/g" /etc/rsyslog.conf
+sed -i "s/#\$UDPServerRun 514/\$UDPServerRun 514/g" /etc/rsyslog.conf
+echo '$UDPServerAddress 127.0.0.1' >> /etc/rsyslog.conf
+
+echo 'local2.*    /var/log/haproxy.log' > /etc/rsyslog.d/haproxy.conf
+
+systemctl restart rsyslog
+
+systemctl start haproxy
+systemctl restart haproxy
+systemctl enable haproxy
+#systemctl enable --now haproxy
+
+https://access.redhat.com/solutions/3278691

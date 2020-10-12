@@ -1,0 +1,82 @@
+#config to: vi /var/lib/tftpboot/pxelinux.cfg/default
+
+
+default vesamenu.c32
+prompt 0
+timeout 600
+display boot.msg
+menu title **** OKD 4.5 PXE Boot Menu ****
+#---------*Bootstrap: 1 eth pub + 1 eth pri
+label Install Fedora CoreOS Bootstrap Node
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/bootstrap.ign ip=10.14.172.4::10.14.172.1:255.255.255.0:uat4.5-bootstrap.okd45:ens192:none ip=10.14.170.4:::255.255.255.0::ens224:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#---------*Master: 1 eth pub + 1 bond pri
+label Install Fedora CoreOS Master Node 1
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/master.ign ip=10.14.172.23::10.14.172.1:255.255.255.0:uat4.5-master01.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.23:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Master Node 2
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/master.ign ip=10.14.172.24::10.14.172.1:255.255.255.0:uat4.5-master02.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.24:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Master Node 3
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/master.ign ip=10.14.172.25::10.14.172.1:255.255.255.0:uat4.5-master03.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.25:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#---------*Worker - 1 bond pub + 1 bond pri
+label Install Fedora CoreOS Worker Node 1
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.28::10.14.172.1:255.255.255.0:uat4.5-worker01.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.28:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Worker Node 2
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.29::10.14.172.1:255.255.255.0:uat4.5-worker02.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.29:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Worker Node 3
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.30::10.14.172.1:255.255.255.0:uat4.5-worker03.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.30:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------*Infra 1 eth pub+ 1 bond pri
+label Install Fedora CoreOS Infra Node 1
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign ip=10.14.172.20::10.14.172.1:255.255.255.0:uat4.5-infra01.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.20:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Infra Node 2
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign ip=10.14.172.21::10.14.172.1:255.255.255.0:uat4.5-infra02.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.21:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Infra Node 3
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign ip=10.14.172.22::10.14.172.1:255.255.255.0:uat4.5-infra03.okd45:ens192:none bond=bond0:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.22:::255.255.255.0::bond0:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------*Router 1 bond pub + 1 bond pri
+kernel okd45/fcos-32.2-kernel
+kernel http://10.14.172.5:8080/okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.26::10.14.172.1:255.255.255.0:uat4.5-router01.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.26:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Router Node 2
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.27::10.14.172.1:255.255.255.0:uat4.5-router02.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.27:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------*Storage 1 bond pub + 1 bond pri
+label Install Fedora CoreOS Storage Node 1
+kernel http://10.14.172.5:8080/okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.100::10.14.172.1:255.255.255.0:uat4.5-storage01.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.100:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Storage Node 2
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.101::10.14.172.1:255.255.255.0:uat4.5-storage02.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.101:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Storage Node 3
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.102::10.14.172.1:255.255.255.0:uat4.5-storage03.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.102:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Storage Node 4
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.103::10.14.172.1:255.255.255.0:uat4.5-storage04.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.103:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+#----------
+label Install Fedora CoreOS Storage Node 5
+kernel okd45/fcos-32.2-kernel
+append initrd=/okd45/fcos-32.2-initramfs.img coreos.live.rootfs_url=http://10.14.172.5:8080/okd45/fcos-32.2-rootfs.img coreos.inst.image_url=http://10.14.172.5:8080/okd45/fcos-32.2.raw.xz coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://10.14.172.5:8080/okd45/worker.ign bond=bond0:ens192,ens161:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.172.104::10.14.172.1:255.255.255.0:uat4.5-storage05.okd45:bond0:none bond=bond1:ens224,ens256:mode=802.3ad,lacp_rate=fast,miimon=100,xmit_hash_policy=layer2+3 ip=10.14.170.104:::255.255.255.0::bond1:none nameserver=10.14.172.2 nameserver=10.14.172.3 rd.neednet=1 console=tty0 console=ttyS0 coreos.inst=yes
+
+
+#restart after config
+systemctl restart dhcpd
+systemctl restart tftp.service
+systemctl restart tftp.socket
